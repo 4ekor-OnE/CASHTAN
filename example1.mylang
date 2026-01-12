@@ -1,0 +1,41 @@
+Calculator: begin
+    integer a, b, result
+    real pi, radius, area
+    bool is_valid
+    string message
+$
+    // Инициализация переменных
+    a = 10;
+    b = 5;
+    
+    // Арифметические операции
+    result = a + b;
+    output("Сумма:", result);
+    
+    result = a - b;
+    output("Разность:", result);
+    
+    result = a * b;
+    output("Произведение:", result);
+    
+    // Работа с real
+    pi = 3.14159;
+    radius = 7.5;
+    area = pi * radius * radius;
+    output("Площадь круга с радиусом", radius, "=", area);
+    
+    // Логические операции
+    is_valid = true;
+    
+    if (a > b) then
+        output("a больше b")
+    else
+        output("a не больше b");
+    
+    // Цикл for
+    output("Счет от 1 до 5:");
+    
+    for i = 1; ++ until (i > 5) do {
+        output("i =", i)
+    }
+end
