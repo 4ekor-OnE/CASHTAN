@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ИНТЕРПРЕТАТОР ДЛЯ MyLanguage (полная перезапись под грамматику с метками)
+ИНТЕРПРЕТАТОР ДЛЯ MyLanguage (обновлено под новую BNF грамматику)
 """
 
 import sys
@@ -25,6 +25,7 @@ class MyInterpreter(MyLanguageVisitor):
         self.variables = {}   # обычные переменные: str → значение
         self.arrays = {}      # массивы: имя → { 'type', 'data': list, 'lower': int }
         self.output_lines = []  # для сбора вывода
+        self.labels = {}     # метки: имя → контекст оператора
 
     # ---------- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ----------
     
@@ -32,25 +33,38 @@ class MyInterpreter(MyLanguageVisitor):
         """Получить значение из variable-контекста (ID, константа или массив)."""
         if var_ctx is None:
             raise ValueError("Пустой контекст переменной")
-
-        # Делегируем по типу узла
         return self.visit(var_ctx)
+
+    def _get_variable_value(self, var_name):
+        """Получить значение переменной по имени."""
+        if var_name in self.variables:
+            return self.variables[var_name]
+        else:
+            raise ValueError(f"Переменная '{var_name}' не объявлена")
+
+    def _set_variable_value(self, var_name, value):
+        """Установить значение переменной."""
+        if var_name in self.variables:
+            self.variables[var_name] = value
+        else:
+            # Автоматическое объявление при первом использовании
+            self.variables[var_name] = value
 
     # ---------- ПРОГРАММА И БЛОК ----------
     
     def visitProgram(self, ctx):
         prog_name = ctx.name.text
-        print(f"🚀 Программа: {prog_name}")
+        print(f"[Программа] {prog_name}")
         return self.visit(ctx.block())
 
     def visitBlock(self, ctx):
-        print("📦 Начало блока")
-        print("📝 ОПИСАНИЯ:")
+        print("[Блок] Начало")
+        print("[ОПИСАНИЯ]")
         self.visit(ctx.descList)
         print("--- Разделитель $ ---")
-        print("⚡ ОПЕРАТОРЫ:")
+        print("[ОПЕРАТОРЫ]")
         self.visit(ctx.stmtList)
-        print("📦 Конец блока")
+        print("[Блок] Конец")
         return None
 
     # ---------- ОПИСАНИЯ ----------
@@ -62,7 +76,7 @@ class MyInterpreter(MyLanguageVisitor):
         return None
 
     def visitNonEmptyTail(self, ctx):
-        self.visit(ctx.next)
+        self.visit(ctx.next_)
         if ctx.rest and not isinstance(ctx.rest, MyLanguageParser.EmptyTailContext):
             self.visit(ctx.rest)
         return None
@@ -71,18 +85,19 @@ class MyInterpreter(MyLanguageVisitor):
         return None
 
     def visitSimpleDesc(self, ctx):
-        var_type = ctx.varType.text
+        simple_desc = ctx.simpleVarDescription()
+        var_type = simple_desc.varType.getText()
         self._current_type = var_type
-        self.visit(ctx.vars)
+        self.visit(simple_desc.vars_)
         del self._current_type
         return None
 
     def visitArrayDesc(self, ctx):
         # Обрабатываем обе формы: typedArray и logicArray
         if isinstance(ctx, MyLanguageParser.TypedArrayContext):
-            arr_type = ctx.arrType.text
+            arr_type = ctx.arrType.getText()
             arr_name = ctx.arrName.text
-            bounds_ctx = ctx.range  # ← исправлено: range вместо bounds
+            bounds_ctx = ctx.range_
             lower = int(bounds_ctx.lower.text)
             upper = int(bounds_ctx.upper.text)
             size = upper - lower + 1
@@ -106,7 +121,9 @@ class MyInterpreter(MyLanguageVisitor):
 
         elif isinstance(ctx, MyLanguageParser.LogicArrayContext):
             arr_name = ctx.logicName.text
-            print(f"    logic array {arr_name}")
+            idx_ctx = ctx.idx
+            # Для logic массива нужно сохранить индекс
+            print(f"    logic {arr_name}")
 
         return None
 
@@ -118,7 +135,7 @@ class MyInterpreter(MyLanguageVisitor):
         return None
 
     def visitNonEmptyTailId(self, ctx):
-        var_name = ctx.next.text
+        var_name = ctx.next_.text
         self._declare_variable(var_name)
         if ctx.rest and not isinstance(ctx.rest, MyLanguageParser.EmptyTailIdContext):
             self.visit(ctx.rest)
@@ -150,7 +167,7 @@ class MyInterpreter(MyLanguageVisitor):
         return None
 
     def visitNonEmptyTailStmt(self, ctx):
-        self.visit(ctx.next)
+        self.visit(ctx.next_)
         if ctx.rest and not isinstance(ctx.rest, MyLanguageParser.EmptyTailStmtContext):
             self.visit(ctx.rest)
         return None
@@ -162,61 +179,76 @@ class MyInterpreter(MyLanguageVisitor):
         target = ctx.target
         value = self.visit(ctx.expr)
 
-        if target.ID() is not None:
-            var_name = target.ID().getText()
-            if var_name in self.variables:
-                self.variables[var_name] = value
-                print(f"    {var_name} = {value}")
-            else:
-                print(f"    ⚠️ Переменная '{var_name}' не объявлена")
-        elif target.arr is not None:
-            arr_info = self.visit(target.arr)  # (name, index)
-            arr_name, idx = arr_info
-            if arr_name in self.arrays:
-                arr = self.arrays[arr_name]
-                pos = idx - arr['lower']
-                if 0 <= pos < len(arr['data']):
-                    arr['data'][pos] = value
-                    print(f"    {arr_name}[{idx}] = {value}")
+        # Определяем тип целевой переменной
+        if isinstance(target, MyLanguageParser.VarIdContext):
+            var_name = target.id_.text
+            self._set_variable_value(var_name, value)
+            print(f"    {var_name} = {value}")
+        elif isinstance(target, MyLanguageParser.VarArrayContext):
+            # Для массива нужно получить имя и индекс отдельно
+            arr_ctx = target.arr
+            arr_name = arr_ctx.arrName.text
+            idx_ctx = arr_ctx.idx
+            
+            if isinstance(idx_ctx, MyLanguageParser.IndexWithVarContext):
+                # Есть индекс
+                index_val = self._get_value(idx_ctx.element)
+                if arr_name in self.arrays:
+                    arr = self.arrays[arr_name]
+                    pos = index_val - arr['lower']
+                    if 0 <= pos < len(arr['data']):
+                        arr['data'][pos] = value
+                        print(f"    {arr_name}[{index_val}] = {value}")
+                    else:
+                        print(f"    [WARNING] Индекс {index_val} вне диапазона массива {arr_name}")
                 else:
-                    print(f"    ⚠️ Индекс {idx} вне диапазона массива {arr_name}")
+                    print(f"    [WARNING] Массив '{arr_name}' не объявлен")
             else:
-                print(f"    ⚠️ Массив '{arr_name}' не объявлен")
+                print(f"    [WARNING] Массив '{arr_name}' используется без индекса в присваивании")
         else:
-            print("    ⚠️ Недопустимая левая часть присваивания")
+            print("    [WARNING] Недопустимая левая часть присваивания")
 
         return value
 
     def visitBlockStmt(self, ctx):
-        print("    📦 Начало вложенного блока")
+        print("    [Блок] Начало вложенного блока")
         self.visit(ctx.body)
-        print("    📦 Конец вложенного блока")
+        print("    [Блок] Конец вложенного блока")
         return None
 
     def visitIfStmt(self, ctx):
-        cond = self.visit(ctx.ifStmt.cond)
-        print(f"    🎯 Условие: {cond}")
+        if_stmt = ctx.ifStatement()
+        cond = self.visit(if_stmt.cond)
+        print(f"    [Условие] {cond}")
         if cond:
-            self.visit(ctx.ifStmt.thenBranch)
+            self.visit(if_stmt.thenBranch)
         else:
-            self.visit(ctx.ifStmt.elseBranch)
+            self.visit(if_stmt.elseBranch)
         return None
 
+    def visitConditionStmt(self, ctx):
+        """Оператор-условие (из BNF: <оператор>::= <условие>)"""
+        # В ConditionStmtContext cond - это ConditionContext напрямую
+        result = self.visit(ctx.cond)
+        print(f"    [Условие как оператор] {result}")
+        return result
+
     def visitOutputStmt(self, ctx):
-        self.visit(ctx.outStmt.list)
+        out_stmt = ctx.outputStatement()
+        self.visit(out_stmt.list_)
         return None
 
     def visitOutputList(self, ctx):
         val = self._get_value(ctx.first)
-        print(f"    📤 {val}")
+        print(f"    [Вывод] {val}")
         self.output_lines.append(str(val))
         if ctx.tail and not isinstance(ctx.tail, MyLanguageParser.EmptyTailOutContext):
             self.visit(ctx.tail)
         return None
 
     def visitNonEmptyTailOut(self, ctx):
-        val = self._get_value(ctx.next)
-        print(f"    📤 {val}")
+        val = self._get_value(ctx.next_)
+        print(f"    [Вывод] {val}")
         self.output_lines.append(str(val))
         if ctx.rest and not isinstance(ctx.rest, MyLanguageParser.EmptyTailOutContext):
             self.visit(ctx.rest)
@@ -226,14 +258,22 @@ class MyInterpreter(MyLanguageVisitor):
         return None
 
     def visitForStmt(self, ctx):
-        var_name = ctx.forLoop.loopVar.text
-        init_val = self.visit(ctx.forLoop.initExpr)
-        step_op = ctx.forLoop.stepOp.text
-        condition_ctx = ctx.forLoop.cond
-        body = ctx.forLoop.body
+        # В новой грамматике loopVar - это variable, а initVal - это constant
+        for_stmt = ctx.forStatement()
+        loop_var_ctx = for_stmt.loopVar
+        init_val = self.visit(for_stmt.initVal)  # теперь constant, а не expression
+        step_op = for_stmt.stepOp.getText()
+        condition_ctx = for_stmt.cond
+        body_ctx = for_stmt.body
 
-        self.variables[var_name] = init_val
-        print(f"    🔄 Цикл for: {var_name} = {init_val}, шаг: {step_op}")
+        # Получаем имя переменной цикла
+        if isinstance(loop_var_ctx, MyLanguageParser.VarIdContext):
+            var_name = loop_var_ctx.id_.text
+        else:
+            raise ValueError("Переменная цикла должна быть идентификатором")
+
+        self._set_variable_value(var_name, init_val)
+        print(f"    [Цикл for] {var_name} = {init_val}, шаг: {step_op}")
 
         iterations = 0
         max_iter = 1000
@@ -241,7 +281,10 @@ class MyInterpreter(MyLanguageVisitor):
             cond_result = self.visit(condition_ctx)
             if not cond_result:
                 break
-            self.visit(body)
+            
+            # Обрабатываем тело цикла (может быть оператором или goto)
+            self.visit(body_ctx)
+            
             if step_op == '++':
                 self.variables[var_name] += 1
             elif step_op == '--':
@@ -251,30 +294,71 @@ class MyInterpreter(MyLanguageVisitor):
             iterations += 1
 
         if iterations >= max_iter:
-            print("    ⚠️ Достигнут лимит итераций")
+            print("    [WARNING] Достигнут лимит итераций")
         else:
-            print(f"    🔄 Цикл завершён ({iterations} итераций)")
+            print(f"    [Цикл] Завершен ({iterations} итераций)")
 
         return None
 
+    def visitLoopBodyStmt(self, ctx):
+        """Тело цикла - оператор"""
+        return self.visit(ctx.stmt)
+
+    def visitLoopBodyGoto(self, ctx):
+        """Тело цикла - goto <имя метки>"""
+        label_name = ctx.labelName.text
+        if label_name in self.labels:
+            print(f"    [GOTO] Переход к метке {label_name}")
+            self.visit(self.labels[label_name])
+        else:
+            print(f"    [WARNING] Метка '{label_name}' не найдена")
+        return None
+
     def visitLabelStmt(self, ctx):
-        return self.visit(ctx.label.innerStmt)
+        label_name = ctx.labelName.text
+        # Сохраняем метку для использования в goto
+        self.labels[label_name] = ctx.innerStmt
+        print(f"    [Метка] {label_name}")
+        return self.visit(ctx.innerStmt)
 
     # ---------- ПЕРЕМЕННЫЕ И КОНСТАНТЫ ----------
     
     def visitVarId(self, ctx):
-        return ctx.id.text
+        var_name = ctx.id_.text
+        # Возвращаем значение переменной, а не имя
+        return self._get_variable_value(var_name)
 
     def visitVarConst(self, ctx):
         return self.visit(ctx.const)
 
     def visitVarArray(self, ctx):
-        arr_name = ctx.arr.arrName.text
-        if ctx.arr.idx is not None:
-            index_val = self._get_value(ctx.arr.idx.element)
-            return (arr_name, index_val)
+        return self.visit(ctx.arr)
+
+    def visitArrayVariable(self, ctx):
+        arr_name = ctx.arrName.text
+        idx_ctx = ctx.idx
+        
+        if isinstance(idx_ctx, MyLanguageParser.IndexWithVarContext):
+            # Индекс есть
+            index_val = self._get_value(idx_ctx.element)
+            if arr_name in self.arrays:
+                arr = self.arrays[arr_name]
+                pos = index_val - arr['lower']
+                if 0 <= pos < len(arr['data']):
+                    return arr['data'][pos]
+                else:
+                    raise IndexError(f"Индекс {index_val} вне диапазона массива {arr_name}")
+            else:
+                raise ValueError(f"Массив '{arr_name}' не объявлен")
         else:
+            # Индекс пустой - возвращаем имя массива для присваивания
             return arr_name
+
+    def visitIndexWithVar(self, ctx):
+        return self._get_value(ctx.element)
+
+    def visitIndexEmpty(self, ctx):
+        return None
 
     def visitConstInt(self, ctx):
         return int(ctx.intVal.text)
@@ -285,70 +369,88 @@ class MyInterpreter(MyLanguageVisitor):
     def visitConstString(self, ctx):
         return ctx.strVal.text[1:-1]  # убираем кавычки
 
-    def visitConstBool(self, ctx):
-        return ctx.boolVal.text == 'true'
-
     # ---------- ВЫРАЖЕНИЯ ----------
     
     def visitExpression(self, ctx):
         base_val = self._get_value(ctx.base)
         tail = ctx.tail
+        
         if tail and not isinstance(tail, MyLanguageParser.EmptyExprTailContext):
+            # Есть операция
             op = tail.op.text
             right_val = self._get_value(tail.right)
-            if hasattr(tail, 'f') and tail.f.continuation is not None:
-                # fTail.expression существует — но наша грамматика не поддерживает цепочки
-                # Ограничимся одной операцией
-                pass
+            
             # Выполняем операцию
-            if op == '+':
-                return base_val + right_val
-            elif op == '-':
-                return base_val - right_val
-            elif op == '*':
-                return base_val * right_val
-            elif op == '/':
-                if right_val == 0:
-                    raise ZeroDivisionError("Деление на ноль")
-                return base_val / right_val
-            elif op == '^':
-                return base_val ** right_val
-            elif op == 'or':
-                return bool(base_val) or bool(right_val)
-            elif op == 'and':
-                return bool(base_val) and bool(right_val)
-            elif op == 'not':
-                return not bool(right_val)
+            result = self._apply_operation(op, base_val, right_val)
+            
+            # Проверяем F_tail (может быть продолжением выражения)
+            if hasattr(tail, 'f') and tail.f:
+                f_tail = tail.f
+                if isinstance(f_tail, MyLanguageParser.FTailExprContext):
+                    # Есть продолжение выражения
+                    continuation = self.visit(f_tail.continuation)
+                    # Применяем операцию к результату и продолжению
+                    # Но это зависит от приоритета операций - упростим
+                    return continuation
+                else:
+                    # F_tail пустой
+                    return result
             else:
-                raise ValueError(f"Неизвестный оператор: {op}")
+                return result
+        
         return base_val
+
+    def _apply_operation(self, op, left, right):
+        """Применить операцию к двум операндам."""
+        if op == '+':
+            return left + right
+        elif op == '-':
+            return left - right
+        elif op == '*':
+            return left * right
+        elif op == '/':
+            if right == 0:
+                raise ZeroDivisionError("Деление на ноль")
+            return left / right
+        elif op == '^':
+            return left ** right
+        elif op == 'or':
+            return bool(left) or bool(right)
+        elif op == 'and':
+            return bool(left) and bool(right)
+        elif op == 'not':
+            return not bool(right)
+        else:
+            raise ValueError(f"Неизвестный оператор: {op}")
 
     def visitEmptyExprTail(self, ctx):
         return None
 
     def visitBinaryOp(self, ctx):
-        # Не должен вызываться напрямую — обрабатывается в visitExpression
+        # Обрабатывается в visitExpression
         pass
+
+    def visitFTailExpr(self, ctx):
+        return self.visit(ctx.continuation)
+
+    def visitFTailEmpty(self, ctx):
+        return None
 
     # ---------- УСЛОВИЯ ----------
     
     def visitCondition(self, ctx):
         left = self._get_value(ctx.left)
         right = self._get_value(ctx.right)
-        op = ctx.op.text
-        if op == '=':
+        op = ctx.op.getText()
+        
+        if op == '=' or op == '==':
             return left == right
         elif op == '>':
             return left > right
         elif op == '<':
             return left < right
-        elif op == '>=':
-            return left >= right
-        elif op == '<=':
-            return left <= right
-        elif op == '!=':
-            return left != right
-        return False
+        else:
+            raise ValueError(f"Неизвестный оператор сравнения: {op}")
 
 
 # ---------- ФУНКЦИИ ЗАПУСКА ----------
@@ -367,42 +469,42 @@ def run_code(source_code: str) -> bool:
         tree = parser.program()
 
         if error_listener.errors:
-            print("\n❌ СИНТАКСИЧЕСКИЕ ОШИБКИ:")
+            print("\n[ERROR] СИНТАКСИЧЕСКИЕ ОШИБКИ:")
             for err in error_listener.errors:
                 print(f"  {err}")
             return False
 
-        print("\n✅ Синтаксический анализ пройден успешно!\n")
+        print("\n[OK] Синтаксический анализ пройден успешно!\n")
 
         interpreter = MyInterpreter()
         interpreter.visit(tree)
 
         # Вывод результатов
         print("\n" + "="*50)
-        print("📊 РЕЗУЛЬТАТЫ ВЫПОЛНЕНИЯ")
+        print("РЕЗУЛЬТАТЫ ВЫПОЛНЕНИЯ")
         print("="*50)
 
         if interpreter.variables:
-            print("\n📌 Переменные:")
+            print("\n[Переменные]")
             for name, val in interpreter.variables.items():
                 print(f"  {name:12} = {val} ({type(val).__name__})")
 
         if interpreter.arrays:
-            print("\n📌 Массивы:")
+            print("\n[Массивы]")
             for name, arr in interpreter.arrays.items():
                 low = arr['lower']
                 high = low + len(arr['data']) - 1
                 print(f"  {name}[{low}:{high}] ({arr['type']}) = {arr['data']}")
 
         if interpreter.output_lines:
-            print("\n📤 Вывод программы:")
+            print("\n[Вывод программы]")
             for line in interpreter.output_lines:
                 print(f"  {line}")
 
         return True
 
     except Exception as e:
-        print(f"\n💥 ОШИБКА ВЫПОЛНЕНИЯ: {e}")
+        print(f"\n[ERROR] ОШИБКА ВЫПОЛНЕНИЯ: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -410,47 +512,48 @@ def run_code(source_code: str) -> bool:
 
 def main():
     print("=" * 60)
-    print("🎯 ИНТЕРПРЕТАТОР MyLanguage (чистая реализация)")
+    print("ИНТЕРПРЕТАТОР MyLanguage (обновлено под новую BNF)")
     print("=" * 60)
 
     if not Path("MyLanguageParser.py").exists():
-        print("\n❌ Отсутствуют сгенерированные файлы парсера!")
-        print("Выполните: java -jar antlr-4.13.2-complete.jar -Dlanguage=Python3 -visitor MyLanguage.g4")
+        print("\n[ERROR] Отсутствуют сгенерированные файлы парсера!")
+        print("Выполните: java -jar C:\\antlr\\antlr-4.13.2-complete.jar -Dlanguage=Python3 -visitor MyLanguage.g4")
         return
 
     example = """MyProgram: begin
-    integer x, y, sum; array integer _arr[1:5]; real pi; bool flag
+    integer x, y, sum;
+    array integer _arr[1:5];
+    real pi
 $
     x = 10;
     y = 20;
     sum = x + y;
     pi = 3.14;
-    flag = true;
     output("Сумма:", sum);
     output("Pi =", pi);
-    for i = 1; ++ until (i > 5) do {
-        _arr[i] = i * 10;
-        output("Элемент", i, "=", _arr[i])
+    for x = 1; ++ until (x > 5) do {
+        _arr[x] = x * 10;
+        output("Элемент", x, "=", _arr[x])
     };
     if (sum > 15) then
         output("Сумма > 15!")
     else
-        output("Сумма ≤ 15")
+        output("Сумма <= 15")
 end"""
 
-    print("\n📄 Тестовая программа:")
+    print("\n[Тестовая программа]")
     print(example)
     print("\n" + "="*60)
-    print("🚀 ЗАПУСК")
+    print("[ЗАПУСК]")
     print("="*60)
 
     success = run_code(example)
 
     print("\n" + "="*60)
     if success:
-        print("✅ ПРОГРАММА ВЫПОЛНЕНА УСПЕШНО!")
+        print("[OK] ПРОГРАММА ВЫПОЛНЕНА УСПЕШНО!")
     else:
-        print("❌ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО С ОШИБКАМИ!")
+        print("[ERROR] ВЫПОЛНЕНИЕ ЗАВЕРШЕНО С ОШИБКАМИ!")
     print("="*60)
 
 

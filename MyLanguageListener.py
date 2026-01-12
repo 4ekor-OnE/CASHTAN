@@ -224,6 +224,15 @@ class MyLanguageListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by MyLanguageParser#conditionStmt.
+    def enterConditionStmt(self, ctx:MyLanguageParser.ConditionStmtContext):
+        pass
+
+    # Exit a parse tree produced by MyLanguageParser#conditionStmt.
+    def exitConditionStmt(self, ctx:MyLanguageParser.ConditionStmtContext):
+        pass
+
+
     # Enter a parse tree produced by MyLanguageParser#ifStatement.
     def enterIfStatement(self, ctx:MyLanguageParser.IfStatementContext):
         pass
@@ -287,6 +296,24 @@ class MyLanguageListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by MyLanguageParser#loopBodyStmt.
+    def enterLoopBodyStmt(self, ctx:MyLanguageParser.LoopBodyStmtContext):
+        pass
+
+    # Exit a parse tree produced by MyLanguageParser#loopBodyStmt.
+    def exitLoopBodyStmt(self, ctx:MyLanguageParser.LoopBodyStmtContext):
+        pass
+
+
+    # Enter a parse tree produced by MyLanguageParser#loopBodyGoto.
+    def enterLoopBodyGoto(self, ctx:MyLanguageParser.LoopBodyGotoContext):
+        pass
+
+    # Exit a parse tree produced by MyLanguageParser#loopBodyGoto.
+    def exitLoopBodyGoto(self, ctx:MyLanguageParser.LoopBodyGotoContext):
+        pass
+
+
     # Enter a parse tree produced by MyLanguageParser#labelStatement.
     def enterLabelStatement(self, ctx:MyLanguageParser.LabelStatementContext):
         pass
@@ -332,12 +359,21 @@ class MyLanguageListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by MyLanguageParser#index.
-    def enterIndex(self, ctx:MyLanguageParser.IndexContext):
+    # Enter a parse tree produced by MyLanguageParser#indexWithVar.
+    def enterIndexWithVar(self, ctx:MyLanguageParser.IndexWithVarContext):
         pass
 
-    # Exit a parse tree produced by MyLanguageParser#index.
-    def exitIndex(self, ctx:MyLanguageParser.IndexContext):
+    # Exit a parse tree produced by MyLanguageParser#indexWithVar.
+    def exitIndexWithVar(self, ctx:MyLanguageParser.IndexWithVarContext):
+        pass
+
+
+    # Enter a parse tree produced by MyLanguageParser#indexEmpty.
+    def enterIndexEmpty(self, ctx:MyLanguageParser.IndexEmptyContext):
+        pass
+
+    # Exit a parse tree produced by MyLanguageParser#indexEmpty.
+    def exitIndexEmpty(self, ctx:MyLanguageParser.IndexEmptyContext):
         pass
 
 
@@ -368,15 +404,6 @@ class MyLanguageListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by MyLanguageParser#constBool.
-    def enterConstBool(self, ctx:MyLanguageParser.ConstBoolContext):
-        pass
-
-    # Exit a parse tree produced by MyLanguageParser#constBool.
-    def exitConstBool(self, ctx:MyLanguageParser.ConstBoolContext):
-        pass
-
-
     # Enter a parse tree produced by MyLanguageParser#expression.
     def enterExpression(self, ctx:MyLanguageParser.ExpressionContext):
         pass
@@ -404,12 +431,21 @@ class MyLanguageListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by MyLanguageParser#fTail.
-    def enterFTail(self, ctx:MyLanguageParser.FTailContext):
+    # Enter a parse tree produced by MyLanguageParser#fTailExpr.
+    def enterFTailExpr(self, ctx:MyLanguageParser.FTailExprContext):
         pass
 
-    # Exit a parse tree produced by MyLanguageParser#fTail.
-    def exitFTail(self, ctx:MyLanguageParser.FTailContext):
+    # Exit a parse tree produced by MyLanguageParser#fTailExpr.
+    def exitFTailExpr(self, ctx:MyLanguageParser.FTailExprContext):
+        pass
+
+
+    # Enter a parse tree produced by MyLanguageParser#fTailEmpty.
+    def enterFTailEmpty(self, ctx:MyLanguageParser.FTailEmptyContext):
+        pass
+
+    # Exit a parse tree produced by MyLanguageParser#fTailEmpty.
+    def exitFTailEmpty(self, ctx:MyLanguageParser.FTailEmptyContext):
         pass
 
 

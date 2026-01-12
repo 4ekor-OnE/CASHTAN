@@ -129,6 +129,11 @@ class MyLanguageVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by MyLanguageParser#conditionStmt.
+    def visitConditionStmt(self, ctx:MyLanguageParser.ConditionStmtContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by MyLanguageParser#ifStatement.
     def visitIfStatement(self, ctx:MyLanguageParser.IfStatementContext):
         return self.visitChildren(ctx)
@@ -164,6 +169,16 @@ class MyLanguageVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by MyLanguageParser#loopBodyStmt.
+    def visitLoopBodyStmt(self, ctx:MyLanguageParser.LoopBodyStmtContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by MyLanguageParser#loopBodyGoto.
+    def visitLoopBodyGoto(self, ctx:MyLanguageParser.LoopBodyGotoContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by MyLanguageParser#labelStatement.
     def visitLabelStatement(self, ctx:MyLanguageParser.LabelStatementContext):
         return self.visitChildren(ctx)
@@ -189,8 +204,13 @@ class MyLanguageVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by MyLanguageParser#index.
-    def visitIndex(self, ctx:MyLanguageParser.IndexContext):
+    # Visit a parse tree produced by MyLanguageParser#indexWithVar.
+    def visitIndexWithVar(self, ctx:MyLanguageParser.IndexWithVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by MyLanguageParser#indexEmpty.
+    def visitIndexEmpty(self, ctx:MyLanguageParser.IndexEmptyContext):
         return self.visitChildren(ctx)
 
 
@@ -209,11 +229,6 @@ class MyLanguageVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by MyLanguageParser#constBool.
-    def visitConstBool(self, ctx:MyLanguageParser.ConstBoolContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by MyLanguageParser#expression.
     def visitExpression(self, ctx:MyLanguageParser.ExpressionContext):
         return self.visitChildren(ctx)
@@ -229,8 +244,13 @@ class MyLanguageVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by MyLanguageParser#fTail.
-    def visitFTail(self, ctx:MyLanguageParser.FTailContext):
+    # Visit a parse tree produced by MyLanguageParser#fTailExpr.
+    def visitFTailExpr(self, ctx:MyLanguageParser.FTailExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by MyLanguageParser#fTailEmpty.
+    def visitFTailEmpty(self, ctx:MyLanguageParser.FTailEmptyContext):
         return self.visitChildren(ctx)
 
 
